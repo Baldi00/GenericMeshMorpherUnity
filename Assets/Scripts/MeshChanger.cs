@@ -35,6 +35,30 @@ public class MeshChanger : MonoBehaviour
         Matrix4x4 previousLocalToWorld = previousObject.transform.localToWorldMatrix;
         Matrix4x4 nextLocalToWorld = nextObject.transform.localToWorldMatrix;
 
+        differenceVectorsFromPrevToNextBuffer = new ComputeBuffer(previousMesh.vertexCount, sizeof(float) * 3);
+        differenceVectorsFromPrevToNextBuffer.SetData(
+            FindNearestVertices(previousMesh, nextMesh, ref previousLocalToWorld, ref nextLocalToWorld));
+        previousObjectMaterial.SetBuffer("_DistancesFromOtherObjectVertices", differenceVectorsFromPrevToNextBuffer);
+
+        differenceVectorsFromNextToPrevBuffer = new ComputeBuffer(nextMesh.vertexCount, sizeof(float) * 3);
+        differenceVectorsFromNextToPrevBuffer.SetData(
+            FindNearestVertices(nextMesh, previousMesh, ref nextLocalToWorld, ref previousLocalToWorld));
+        nextObjectMaterial.SetBuffer("_DistancesFromOtherObjectVertices", differenceVectorsFromNextToPrevBuffer);
+
+        StartCoroutine(AnimateMeshChange(previousObject, nextObject, previousObjectMaterial, nextObjectMaterial));
+    }
+
+    /// <summary>
+    /// For every vertex in previous mesh finds the difference vectors to the nearest vertex in next mesh.
+    /// Transformation matrices are needed because the distances and difference vectors are computed in world space
+    /// </summary>
+    /// <param name="previousMesh">The starting mesh of the animation</param>
+    /// <param name="nextMesh">The end mesh of the animation</param>
+    /// <param name="previousLocalToWorld">Transformation matrix from local to world for previous mesh</param>
+    /// <param name="nextLocalToWorld">Transformation matrix from local to world for next mesh</param>
+    /// <returns>The difference vectors to the nearest next mesh vertex for each previous mesh vertex</returns>
+    private Vector3[] FindNearestVertices(Mesh previousMesh, Mesh nextMesh, ref Matrix4x4 previousLocalToWorld, ref Matrix4x4 nextLocalToWorld)
+    {
         Vector3[] differencesVectorsFromPrevToNext = new Vector3[previousMesh.vertexCount];
 
         for (int i = 0; i < previousMesh.vertexCount; i++)
@@ -59,39 +83,7 @@ public class MeshChanger : MonoBehaviour
             differencesVectorsFromPrevToNext[i] = differenceVector;
         }
 
-        differenceVectorsFromPrevToNextBuffer = new ComputeBuffer(previousMesh.vertexCount, sizeof(float) * 3);
-        differenceVectorsFromPrevToNextBuffer.SetData(differencesVectorsFromPrevToNext);
-        previousObjectMaterial.SetBuffer("_DistancesFromOtherObjectVertices", differenceVectorsFromPrevToNextBuffer);
-
-        Vector3[] differencesVectorsFromNextToPrev = new Vector3[nextMesh.vertexCount];
-
-        for (int i = 0; i < nextMesh.vertexCount; i++)
-        {
-            Vector3 currentNextWorldVertex = nextLocalToWorld.MultiplyPoint3x4(nextMesh.vertices[i]);
-
-            Vector3 currentPrevWorldVertex = previousLocalToWorld.MultiplyPoint3x4(nextMesh.vertices[0]);
-            Vector3 differenceVector = currentPrevWorldVertex - currentNextWorldVertex;
-            float sqrDistance = differenceVector.sqrMagnitude;
-
-            for (int j = 1; j < previousMesh.vertexCount; j++)
-            {
-                currentPrevWorldVertex = previousLocalToWorld.MultiplyPoint3x4(previousMesh.vertices[j]);
-                float currentSqrDistance = (currentPrevWorldVertex - currentNextWorldVertex).sqrMagnitude;
-                if (currentSqrDistance < sqrDistance)
-                {
-                    differenceVector = currentPrevWorldVertex - currentNextWorldVertex;
-                    sqrDistance = currentSqrDistance;
-                }
-            }
-
-            differencesVectorsFromNextToPrev[i] = differenceVector;
-        }
-
-        differenceVectorsFromNextToPrevBuffer = new ComputeBuffer(nextMesh.vertexCount, sizeof(float) * 3);
-        differenceVectorsFromNextToPrevBuffer.SetData(differencesVectorsFromNextToPrev);
-        nextObjectMaterial.SetBuffer("_DistancesFromOtherObjectVertices", differenceVectorsFromNextToPrevBuffer);
-
-        StartCoroutine(AnimateMeshChange(previousObject, nextObject, previousObjectMaterial, nextObjectMaterial));
+        return differencesVectorsFromPrevToNext;
     }
 
     private IEnumerator AnimateMeshChange(GameObject previousGO, GameObject nextGameObject, Material previousMat, Material nextMat)
