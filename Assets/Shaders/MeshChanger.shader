@@ -101,7 +101,7 @@ Shader "Custom/MeshChanger"
                 // half4 specularColor = half4(saturate(dot(reflectVector, viewVector)).xxx, 1);
 
                 // Specular (Blinn-Phong)
-                half3 viewVector = normalize(_WorldSpaceCameraPos - i.worldPosition);
+                half3 viewVector = normalize(_WorldSpaceCameraPos - i.worldPosition.xyz);
                 half4 specularColor = half4(saturate(dot(normalize(lightDirection + viewVector), normalize(i.normal))).xxx, 1);
                 float specularExponent = exp2(_Gloss * 11) + 2;
                 specularColor *= lambertian > 0;
