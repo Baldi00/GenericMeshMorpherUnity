@@ -4,15 +4,26 @@ using UnityEngine;
 
 public class MeshChanger : MonoBehaviour
 {
+    public enum Mode
+    {
+        GPU,
+        CPU_VERY_SLOW,
+    }
+
     [SerializeField]
-    private List<GameObject> objects;
+    private Mode executionMode;
     [SerializeField]
     private float animationDuration = 1;
+    [SerializeField]
+    private List<GameObject> objects;
     [SerializeField]
     private ComputeShader findNearestVerticesCompute;
 
     private int currentObjectIndex = 0;
     private float animationTimer;
+
+    private GameObject previousObject;
+    private GameObject nextObject;
 
     private ComputeBuffer differenceVectorsFromPrevToNextBuffer;
     private ComputeBuffer differenceVectorsFromNextToPrevBuffer;
@@ -24,19 +35,44 @@ public class MeshChanger : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Mouse0))
+        if (IsAnimatingMeshes())
+            return;
+
+        if (Input.GetKeyDown(KeyCode.LeftArrow))
+            PreviousMesh();
+        else if (Input.GetKeyDown(KeyCode.RightArrow))
             NextMesh();
     }
 
+    /// <summary>
+    /// Passes to previous mesh
+    /// </summary>
+    private void PreviousMesh()
+    {
+        previousObject = objects[currentObjectIndex];
+        currentObjectIndex = (currentObjectIndex - 1 + objects.Count) % objects.Count;
+        nextObject = objects[currentObjectIndex];
+
+        SetupAndStartMeshAnimation();
+    }
+
+    /// <summary>
+    /// Passes to next mesh
+    /// </summary>
     private void NextMesh()
     {
-        if (animationTimer < animationDuration)
-            return;
-
-        GameObject previousObject = objects[currentObjectIndex];
+        previousObject = objects[currentObjectIndex];
         currentObjectIndex = (currentObjectIndex + 1) % objects.Count;
-        GameObject nextObject = objects[currentObjectIndex];
+        nextObject = objects[currentObjectIndex];
 
+        SetupAndStartMeshAnimation();
+    }
+
+    /// <summary>
+    /// Finds the nearest vertices from previous to next mesh, sets up materials parameters and starts the animation
+    /// </summary>
+    private void SetupAndStartMeshAnimation()
+    {
         Mesh previousMesh = previousObject.GetComponent<MeshFilter>().mesh;
         Mesh nextMesh = nextObject.GetComponent<MeshFilter>().mesh;
         Material previousObjectMaterial = previousObject.GetComponent<MeshRenderer>().material;
@@ -45,17 +81,44 @@ public class MeshChanger : MonoBehaviour
         Matrix4x4 previousLocalToWorld = previousObject.transform.localToWorldMatrix;
         Matrix4x4 nextLocalToWorld = nextObject.transform.localToWorldMatrix;
 
-        differenceVectorsFromPrevToNextBuffer = new ComputeBuffer(previousMesh.vertexCount, sizeof(float) * 3);
-        FindNearestVerticesCompute(previousMesh, nextMesh,
-            ref previousLocalToWorld, ref nextLocalToWorld, differenceVectorsFromPrevToNextBuffer);
-        previousObjectMaterial.SetBuffer("_DistancesFromOtherObjectVertices", differenceVectorsFromPrevToNextBuffer);
+        FindNearestVertices(previousMesh, nextMesh, ref previousLocalToWorld, ref nextLocalToWorld);
 
-        differenceVectorsFromNextToPrevBuffer = new ComputeBuffer(nextMesh.vertexCount, sizeof(float) * 3);
-        FindNearestVerticesCompute(nextMesh, previousMesh,
-            ref nextLocalToWorld, ref previousLocalToWorld, differenceVectorsFromNextToPrevBuffer);
+        previousObjectMaterial.SetBuffer("_DistancesFromOtherObjectVertices", differenceVectorsFromPrevToNextBuffer);
         nextObjectMaterial.SetBuffer("_DistancesFromOtherObjectVertices", differenceVectorsFromNextToPrevBuffer);
 
-        StartCoroutine(AnimateMeshChange(previousObject, nextObject, previousObjectMaterial, nextObjectMaterial));
+        StartCoroutine(
+            AnimateMeshChangeCoroutine(previousObject, nextObject, previousObjectMaterial, nextObjectMaterial));
+    }
+
+    /// <summary>
+    /// For every vertex in previous mesh finds the difference vectors to the nearest vertex in next mesh.
+    /// Transformation matrices are needed because the distances and difference vectors are computed in world space.
+    /// Makes computations on CPU or GPU depending on the given settings
+    /// </summary>
+    /// <param name="previousMesh">The starting mesh of the animation</param>
+    /// <param name="nextMesh">The end mesh of the animation</param>
+    /// <param name="previousLocalToWorld">Transformation matrix from local to world for previous mesh</param>
+    /// <param name="nextLocalToWorld">Transformation matrix from local to world for next mesh</param>
+    private void FindNearestVertices(Mesh previousMesh, Mesh nextMesh,
+        ref Matrix4x4 previousLocalToWorld, ref Matrix4x4 nextLocalToWorld)
+    {
+        differenceVectorsFromPrevToNextBuffer = new ComputeBuffer(previousMesh.vertexCount, sizeof(float) * 3);
+        differenceVectorsFromNextToPrevBuffer = new ComputeBuffer(nextMesh.vertexCount, sizeof(float) * 3);
+
+        if (executionMode == Mode.CPU_VERY_SLOW)
+        {
+            differenceVectorsFromPrevToNextBuffer.SetData(
+                FindNearestVerticesCpu(previousMesh, nextMesh, ref previousLocalToWorld, ref nextLocalToWorld));
+            differenceVectorsFromNextToPrevBuffer.SetData(
+                FindNearestVerticesCpu(nextMesh, previousMesh, ref nextLocalToWorld, ref previousLocalToWorld));
+        }
+        else if (executionMode == Mode.GPU)
+        {
+            FindNearestVerticesGpu(previousMesh, nextMesh,
+                ref previousLocalToWorld, ref nextLocalToWorld, differenceVectorsFromPrevToNextBuffer);
+            FindNearestVerticesGpu(nextMesh, previousMesh,
+                ref nextLocalToWorld, ref previousLocalToWorld, differenceVectorsFromNextToPrevBuffer);
+        }
     }
 
     /// <summary>
@@ -67,7 +130,7 @@ public class MeshChanger : MonoBehaviour
     /// <param name="previousLocalToWorld">Transformation matrix from local to world for previous mesh</param>
     /// <param name="nextLocalToWorld">Transformation matrix from local to world for next mesh</param>
     /// <returns>The difference vectors to the nearest next mesh vertex for each previous mesh vertex</returns>
-    private Vector3[] FindNearestVertices(Mesh previousMesh, Mesh nextMesh,
+    private Vector3[] FindNearestVerticesCpu(Mesh previousMesh, Mesh nextMesh,
         ref Matrix4x4 previousLocalToWorld, ref Matrix4x4 nextLocalToWorld)
     {
         Vector3[] differencesVectorsFromPrevToNext = new Vector3[previousMesh.vertexCount];
@@ -106,7 +169,7 @@ public class MeshChanger : MonoBehaviour
     /// <param name="previousLocalToWorld">Transformation matrix from local to world for previous mesh</param>
     /// <param name="nextLocalToWorld">Transformation matrix from local to world for next mesh</param>
     /// <param name="differenceFromPrevToNext">The difference vectors to the nearest next mesh vertex for each previous mesh vertex</param>
-    private void FindNearestVerticesCompute(Mesh previousMesh, Mesh nextMesh, ref Matrix4x4 previousLocalToWorld,
+    private void FindNearestVerticesGpu(Mesh previousMesh, Mesh nextMesh, ref Matrix4x4 previousLocalToWorld,
         ref Matrix4x4 nextLocalToWorld, ComputeBuffer differenceFromPrevToNext)
     {
         ComputeBuffer previousVerticesBuffer = new ComputeBuffer(previousMesh.vertexCount, sizeof(float) * 3);
@@ -127,35 +190,52 @@ public class MeshChanger : MonoBehaviour
         nextVerticesBuffer.Dispose();
     }
 
-    private IEnumerator AnimateMeshChange(GameObject previousGO, GameObject nextGameObject, Material previousMat, Material nextMat)
+    /// <summary>
+    /// Animates the previous mesh and next mesh materials
+    /// </summary>
+    /// <param name="previousGameObject">The game object holding the previous mesh</param>
+    /// <param name="nextGameObject">The game object holding the next mesh</param>
+    /// <param name="previousMaterial">The previous mesh material</param>
+    /// <param name="nextMaterial">The next mesh material</param>
+    private IEnumerator AnimateMeshChangeCoroutine(GameObject previousGameObject, GameObject nextGameObject,
+        Material previousMaterial, Material nextMaterial)
     {
         nextGameObject.SetActive(true);
 
-        previousMat.SetFloat("_MeshChangerSlider", 0);
-        nextMat.SetFloat("_MeshChangerSlider", 1);
-        previousMat.SetFloat("_Opacity", 1);
-        nextMat.SetFloat("_Opacity", 0);
+        previousMaterial.SetFloat("_MeshChangerSlider", 0);
+        nextMaterial.SetFloat("_MeshChangerSlider", 1);
+        previousMaterial.SetFloat("_Opacity", 1);
+        nextMaterial.SetFloat("_Opacity", 0);
 
         animationTimer = -Time.deltaTime;
-        while(animationTimer < animationDuration)
+        while (animationTimer < animationDuration)
         {
             animationTimer += Time.deltaTime;
-            previousMat.SetFloat("_MeshChangerSlider", animationTimer / animationDuration);
-            nextMat.SetFloat("_MeshChangerSlider", (animationDuration - animationTimer) / animationDuration);
-            previousMat.SetFloat("_Opacity", (animationDuration - animationTimer) / animationDuration);
-            nextMat.SetFloat("_Opacity", animationTimer / animationDuration);
+            previousMaterial.SetFloat("_MeshChangerSlider", animationTimer / animationDuration);
+            nextMaterial.SetFloat("_MeshChangerSlider", (animationDuration - animationTimer) / animationDuration);
+            previousMaterial.SetFloat("_Opacity", (animationDuration - animationTimer) / animationDuration);
+            nextMaterial.SetFloat("_Opacity", animationTimer / animationDuration);
             yield return null;
         }
 
-        previousMat.SetFloat("_MeshChangerSlider", 1);
-        nextMat.SetFloat("_MeshChangerSlider", 0);
-        previousMat.SetFloat("_Opacity", 0);
-        nextMat.SetFloat("_Opacity", 1);
+        previousMaterial.SetFloat("_MeshChangerSlider", 1);
+        nextMaterial.SetFloat("_MeshChangerSlider", 0);
+        previousMaterial.SetFloat("_Opacity", 0);
+        nextMaterial.SetFloat("_Opacity", 1);
 
-        previousGO.SetActive(false);
+        previousGameObject.SetActive(false);
         nextGameObject.SetActive(true);
 
         differenceVectorsFromPrevToNextBuffer.Dispose();
         differenceVectorsFromNextToPrevBuffer.Dispose();
+    }
+
+    /// <summary>
+    /// Checks if a mesh animation is occurring
+    /// </summary>
+    /// <returns>True if a mesh animation is occurring, false otherwise</returns>
+    private bool IsAnimatingMeshes()
+    {
+        return animationTimer < animationDuration;
     }
 }
