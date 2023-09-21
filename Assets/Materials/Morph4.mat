@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: MeshChanger 4
+  m_Name: Morph4
   m_Shader: {fileID: 4800000, guid: 182c7cb205906eb48b253e695cc708d7, type: 3}
   m_ValidKeywords: []
   m_InvalidKeywords:

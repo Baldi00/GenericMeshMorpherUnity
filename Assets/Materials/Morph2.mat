@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: MeshChanger 1
+  m_Name: Morph2
   m_Shader: {fileID: 4800000, guid: 182c7cb205906eb48b253e695cc708d7, type: 3}
   m_ValidKeywords: []
   m_InvalidKeywords:
@@ -23,7 +23,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: a04ecc9d5e12d5d449077414eb86635e, type: 3}
+        m_Texture: {fileID: 2800000, guid: 13e7e6fe43a8aa049bcd610bbc1f5ff8, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []

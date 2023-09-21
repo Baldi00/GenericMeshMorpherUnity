@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Mei
+  m_Name: Morph1
   m_Shader: {fileID: 4800000, guid: 182c7cb205906eb48b253e695cc708d7, type: 3}
   m_ValidKeywords: []
   m_InvalidKeywords:
@@ -23,7 +23,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: 586c231be76d8134d9b111adc7fd6cb8, type: 3}
+        m_Texture: {fileID: 2800000, guid: a04ecc9d5e12d5d449077414eb86635e, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
@@ -33,7 +33,7 @@ Material:
     - _MeshChangerSlider: 0
     - _Mode: 1
     - _Opacity: 1
-    - _ZWrite: 1
+    - _ZWrite: 0
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []

@@ -1,4 +1,4 @@
-Shader "Custom/MeshChanger"
+Shader "Custom/MeshMorph"
 {
     Properties
     {
@@ -13,7 +13,7 @@ Shader "Custom/MeshChanger"
         _ZWrite ("Z Write", Float) = 1
 
         [HideInInspector]
-        _MeshChangerSlider ("Mesh Changer Slider", Range(0,1)) = 0
+        _MeshMorpherSlider ("Mesh Morph Slider", Range(0,1)) = 0
     }
     SubShader
     {
@@ -59,7 +59,7 @@ Shader "Custom/MeshChanger"
             float4 _Color;
             float _Gloss;
             float _Opacity;
-            float _MeshChangerSlider;
+            float _MeshMorpherSlider;
 
             StructuredBuffer<float3> _DistancesFromOtherObjectVertices;
 
@@ -74,7 +74,7 @@ Shader "Custom/MeshChanger"
                 o.worldPosition = worldPosition;
                 
                 o.vertex = mul(UNITY_MATRIX_VP, worldPosition +
-                    lerp(float4(0,0,0,0), float4(_DistancesFromOtherObjectVertices[v.vertexId], 0), _MeshChangerSlider));
+                    lerp(float4(0,0,0,0), float4(_DistancesFromOtherObjectVertices[v.vertexId], 0), _MeshMorpherSlider));
                 
                 return o;
             }

@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MeshChanger : MonoBehaviour
+public class MeshMorpher : MonoBehaviour
 {
     public enum Mode
     {
@@ -202,8 +202,8 @@ public class MeshChanger : MonoBehaviour
     {
         nextGameObject.SetActive(true);
 
-        previousMaterial.SetFloat("_MeshChangerSlider", 0);
-        nextMaterial.SetFloat("_MeshChangerSlider", 1);
+        previousMaterial.SetFloat("_MeshMorpherSlider", 0);
+        nextMaterial.SetFloat("_MeshMorpherSlider", 1);
         previousMaterial.SetFloat("_Opacity", 1);
         nextMaterial.SetFloat("_Opacity", 0);
 
@@ -211,15 +211,15 @@ public class MeshChanger : MonoBehaviour
         while (animationTimer < animationDuration)
         {
             animationTimer += Time.deltaTime;
-            previousMaterial.SetFloat("_MeshChangerSlider", animationTimer / animationDuration);
-            nextMaterial.SetFloat("_MeshChangerSlider", (animationDuration - animationTimer) / animationDuration);
+            previousMaterial.SetFloat("_MeshMorpherSlider", animationTimer / animationDuration);
+            nextMaterial.SetFloat("_MeshMorpherSlider", (animationDuration - animationTimer) / animationDuration);
             previousMaterial.SetFloat("_Opacity", (animationDuration - animationTimer) / animationDuration);
             nextMaterial.SetFloat("_Opacity", animationTimer / animationDuration);
             yield return null;
         }
 
-        previousMaterial.SetFloat("_MeshChangerSlider", 1);
-        nextMaterial.SetFloat("_MeshChangerSlider", 0);
+        previousMaterial.SetFloat("_MeshMorpherSlider", 1);
+        nextMaterial.SetFloat("_MeshMorpherSlider", 0);
         previousMaterial.SetFloat("_Opacity", 0);
         nextMaterial.SetFloat("_Opacity", 1);
 
