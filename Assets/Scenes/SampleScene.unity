@@ -158,6 +158,8 @@ MonoBehaviour:
   - {fileID: 498354516}
   - {fileID: 2061488950}
   animationDuration: 1
+  findNearestVerticesCompute: {fileID: 7200000, guid: fb89c3916c7b5b54f9137b0609232efa,
+    type: 3}
 --- !u!4 &31239027
 Transform:
   m_ObjectHideFlags: 0

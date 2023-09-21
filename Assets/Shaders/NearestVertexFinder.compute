@@ -1,0 +1,36 @@
+#pragma kernel CSMain
+
+StructuredBuffer<float3> _PreviousMeshVertices;
+StructuredBuffer<float3> _NextMeshVertices;
+float4x4 _PreviousLocalToWorldMatrix;
+float4x4 _NextLocalToWorldMatrix;
+uint _NextMeshVerticesCount;
+RWStructuredBuffer<float3> _DifferenceFromPrevToNext;
+
+float SqrMagnitude(float3 v)
+{
+    return v.x*v.x + v.y*v.y + v.z*v.z;
+}
+
+[numthreads(64,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float4 currentPrevWorldVertex = mul(_PreviousLocalToWorldMatrix, float4(_PreviousMeshVertices[id.x], 1));
+
+    float4 currentNextWorldVertex = mul(_NextLocalToWorldMatrix, float4(_NextMeshVertices[0], 1));
+    float3 differenceVector = (currentNextWorldVertex - currentPrevWorldVertex).xyz;
+    float sqrDistance = SqrMagnitude(differenceVector);
+
+    for (uint i = 1; i < _NextMeshVerticesCount; i++)
+    {
+        currentNextWorldVertex = mul(_NextLocalToWorldMatrix, float4(_NextMeshVertices[i], 1));
+        float currentSqrDistance = SqrMagnitude((currentNextWorldVertex - currentPrevWorldVertex).xyz);
+        if (currentSqrDistance < sqrDistance)
+        {
+            differenceVector = (currentNextWorldVertex - currentPrevWorldVertex).xyz;
+            sqrDistance = currentSqrDistance;
+        }
+    }
+
+    _DifferenceFromPrevToNext[id.x] = differenceVector;
+}

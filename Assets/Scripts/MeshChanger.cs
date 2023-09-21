@@ -8,6 +8,8 @@ public class MeshChanger : MonoBehaviour
     private List<GameObject> objects;
     [SerializeField]
     private float animationDuration = 1;
+    [SerializeField]
+    private ComputeShader findNearestVerticesCompute;
 
     private int currentObjectIndex = 0;
     private float animationTimer;
@@ -15,14 +17,22 @@ public class MeshChanger : MonoBehaviour
     private ComputeBuffer differenceVectorsFromPrevToNextBuffer;
     private ComputeBuffer differenceVectorsFromNextToPrevBuffer;
 
+    void Awake()
+    {
+        animationTimer = animationDuration;
+    }
+
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.A))
+        if (Input.GetKeyDown(KeyCode.Mouse0))
             NextMesh();
     }
 
     private void NextMesh()
     {
+        if (animationTimer < animationDuration)
+            return;
+
         GameObject previousObject = objects[currentObjectIndex];
         currentObjectIndex = (currentObjectIndex + 1) % objects.Count;
         GameObject nextObject = objects[currentObjectIndex];
@@ -36,13 +46,13 @@ public class MeshChanger : MonoBehaviour
         Matrix4x4 nextLocalToWorld = nextObject.transform.localToWorldMatrix;
 
         differenceVectorsFromPrevToNextBuffer = new ComputeBuffer(previousMesh.vertexCount, sizeof(float) * 3);
-        differenceVectorsFromPrevToNextBuffer.SetData(
-            FindNearestVertices(previousMesh, nextMesh, ref previousLocalToWorld, ref nextLocalToWorld));
+        FindNearestVerticesCompute(previousMesh, nextMesh,
+            ref previousLocalToWorld, ref nextLocalToWorld, differenceVectorsFromPrevToNextBuffer);
         previousObjectMaterial.SetBuffer("_DistancesFromOtherObjectVertices", differenceVectorsFromPrevToNextBuffer);
 
         differenceVectorsFromNextToPrevBuffer = new ComputeBuffer(nextMesh.vertexCount, sizeof(float) * 3);
-        differenceVectorsFromNextToPrevBuffer.SetData(
-            FindNearestVertices(nextMesh, previousMesh, ref nextLocalToWorld, ref previousLocalToWorld));
+        FindNearestVerticesCompute(nextMesh, previousMesh,
+            ref nextLocalToWorld, ref previousLocalToWorld, differenceVectorsFromNextToPrevBuffer);
         nextObjectMaterial.SetBuffer("_DistancesFromOtherObjectVertices", differenceVectorsFromNextToPrevBuffer);
 
         StartCoroutine(AnimateMeshChange(previousObject, nextObject, previousObjectMaterial, nextObjectMaterial));
@@ -57,7 +67,8 @@ public class MeshChanger : MonoBehaviour
     /// <param name="previousLocalToWorld">Transformation matrix from local to world for previous mesh</param>
     /// <param name="nextLocalToWorld">Transformation matrix from local to world for next mesh</param>
     /// <returns>The difference vectors to the nearest next mesh vertex for each previous mesh vertex</returns>
-    private Vector3[] FindNearestVertices(Mesh previousMesh, Mesh nextMesh, ref Matrix4x4 previousLocalToWorld, ref Matrix4x4 nextLocalToWorld)
+    private Vector3[] FindNearestVertices(Mesh previousMesh, Mesh nextMesh,
+        ref Matrix4x4 previousLocalToWorld, ref Matrix4x4 nextLocalToWorld)
     {
         Vector3[] differencesVectorsFromPrevToNext = new Vector3[previousMesh.vertexCount];
 
@@ -84,6 +95,36 @@ public class MeshChanger : MonoBehaviour
         }
 
         return differencesVectorsFromPrevToNext;
+    }
+
+    /// <summary>
+    /// For every vertex in previous mesh finds the difference vectors to the nearest vertex in next mesh using a compute shader.
+    /// Transformation matrices are needed because the distances and difference vectors are computed in world space
+    /// </summary>
+    /// <param name="previousMesh">The starting mesh of the animation</param>
+    /// <param name="nextMesh">The end mesh of the animation</param>
+    /// <param name="previousLocalToWorld">Transformation matrix from local to world for previous mesh</param>
+    /// <param name="nextLocalToWorld">Transformation matrix from local to world for next mesh</param>
+    /// <param name="differenceFromPrevToNext">The difference vectors to the nearest next mesh vertex for each previous mesh vertex</param>
+    private void FindNearestVerticesCompute(Mesh previousMesh, Mesh nextMesh, ref Matrix4x4 previousLocalToWorld,
+        ref Matrix4x4 nextLocalToWorld, ComputeBuffer differenceFromPrevToNext)
+    {
+        ComputeBuffer previousVerticesBuffer = new ComputeBuffer(previousMesh.vertexCount, sizeof(float) * 3);
+        ComputeBuffer nextVerticesBuffer = new ComputeBuffer(nextMesh.vertexCount, sizeof(float) * 3);
+        previousVerticesBuffer.SetData(previousMesh.vertices);
+        nextVerticesBuffer.SetData(nextMesh.vertices);
+
+        findNearestVerticesCompute.SetBuffer(0, "_PreviousMeshVertices", previousVerticesBuffer);
+        findNearestVerticesCompute.SetBuffer(0, "_NextMeshVertices", nextVerticesBuffer);
+        findNearestVerticesCompute.SetMatrix("_PreviousLocalToWorldMatrix", previousLocalToWorld);
+        findNearestVerticesCompute.SetMatrix("_NextLocalToWorldMatrix", nextLocalToWorld);
+        findNearestVerticesCompute.SetInt("_NextMeshVerticesCount", nextMesh.vertexCount);
+        findNearestVerticesCompute.SetBuffer(0, "_DifferenceFromPrevToNext", differenceFromPrevToNext);
+
+        findNearestVerticesCompute.Dispatch(0, Mathf.CeilToInt(previousMesh.vertexCount / 64f), 1, 1);
+
+        previousVerticesBuffer.Dispose();
+        nextVerticesBuffer.Dispose();
     }
 
     private IEnumerator AnimateMeshChange(GameObject previousGO, GameObject nextGameObject, Material previousMat, Material nextMat)
