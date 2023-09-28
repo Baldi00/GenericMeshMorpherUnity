@@ -66,7 +66,7 @@ Shader "Custom/MeshMorph"
             v2f vert (appdata v)
             {
                 v2f o;
-                o.normal = v.normal;
+                o.normal = normalize(mul(unity_ObjectToWorld, v.normal));
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.vertexId = v.vertexId;
                 
